@@ -7942,6 +7942,8 @@ void PlayerbotAI::UseItem(Item* item, uint32 targetFlag, ObjectGuid targetGUID)
         return;
     }
 
+    MovementClear();
+
     std::unique_ptr<WorldPacket> packet(new WorldPacket(CMSG_USE_ITEM, 28));
     *packet << bagIndex << slot << cast_count << spellId << item_guid
             << glyphIndex << unk_flags << targetFlag;

@@ -3087,6 +3087,10 @@ enum LootType
     LOOT_MAIL           = 23,
     LOOT_SPELL          = 24,
 
+#ifdef ENABLE_PLAYERBOTS
+#define CMANGOS
+#endif
+
     LOOT_DEBUG          = 100
 };
 

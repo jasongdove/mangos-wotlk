@@ -16,17 +16,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-if(BUILD_GAME_SERVER OR BUILD_LOGIN_SERVER OR BUILD_EXTRACTORS)
-  add_subdirectory(framework)
-  add_subdirectory(shared)
-endif()
-
-if(BUILD_GAME_SERVER)
-  add_subdirectory(game)
-  add_subdirectory(mangosd)
-  add_subdirectory(modules)
-endif()
-
-if(BUILD_LOGIN_SERVER)
-  add_subdirectory(realmd)
+# Include Player Bots if enabled
+if (BUILD_PLAYERBOT)
+  add_subdirectory(Bots)
 endif()

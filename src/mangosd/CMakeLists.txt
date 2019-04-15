@@ -57,6 +57,21 @@ target_link_libraries(${EXECUTABLE_NAME}
   gsoap
 )
 
+if (BUILD_PLAYERBOT)
+  include_directories(
+    ${CMAKE_SOURCE_DIR}/src/modules/Bots/playerbot
+    ${CMAKE_SOURCE_DIR}/src/modules/Bots/ahbot
+    ${CMAKE_SOURCE_DIR}/src/shared/Config
+  )
+  target_link_libraries(${EXECUTABLE_NAME} Bots)
+  add_dependencies(${EXECUTABLE_NAME} Bots)
+endif()
+
+# Define ENABLE_PLAYERBOTS if need
+if (BUILD_PLAYERBOT)
+  add_definitions(-DENABLE_PLAYERBOTS)
+endif()
+
 if(WIN32)
   target_link_libraries(${EXECUTABLE_NAME}
     optimized ${MYSQL_LIBRARY}

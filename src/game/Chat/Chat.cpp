@@ -35,6 +35,12 @@
 #include "GameEvents/GameEventMgr.h"
 #include "AuctionHouseBot/AuctionHouseBot.h"
 
+#ifdef ENABLE_PLAYERBOTS
+#include "AhBot.h"
+#include "playerbot.h"
+#include "GuildTaskMgr.h"
+#endif /* ENABLE_PLAYERBOTS */
+
 // Supported shift-links (client generated and server side)
 // |color|Hachievement:achievement_id:player_guid_hex:completed_0_1:mm:dd:yy_from_2000:criteriaMask1:criteriaMask2:criteriaMask3:criteriaMask4|h[name]|h|r
 //                                                                        - client, item icon shift click, not used in server currently
@@ -794,7 +800,14 @@ ChatCommand* ChatHandler::getCommandTable()
         { "account",        SEC_PLAYER,         true,  nullptr,                                           "", accountCommandTable  },
         { "achievement",    SEC_ADMINISTRATOR,  true,  nullptr,                                           "", achievementCommandTable },
         { "auction",        SEC_ADMINISTRATOR,  false, nullptr,                                           "", auctionCommandTable  },
+#ifndef ENABLE_PLAYERBOTS	
         { "ahbot",          SEC_ADMINISTRATOR,  true,  nullptr,                                           "", ahbotCommandTable    },
+#else
+        { "ahbot",          SEC_GAMEMASTER,     true,  &ChatHandler::HandleAhBotCommand,                  "", ahbotCommandTable    },
+        { "rndbot",         SEC_GAMEMASTER,     true,  &ChatHandler::HandleRandomPlayerbotCommand,        "", nullptr    },
+        { "bot",            SEC_PLAYER,         false, &ChatHandler::HandlePlayerbotCommand,              "", nullptr    },
+        { "gtask",          SEC_GAMEMASTER,     true,  &ChatHandler::HandleGuildTaskCommand,              "", nullptr    },
+#endif
         { "cast",           SEC_ADMINISTRATOR,  false, nullptr,                                           "", castCommandTable     },
         { "character",      SEC_GAMEMASTER,     true,  nullptr,                                           "", characterCommandTable},
         { "debug",          SEC_MODERATOR,      true,  nullptr,                                           "", debugCommandTable    },
@@ -886,10 +899,6 @@ ChatCommand* ChatHandler::getCommandTable()
         { "quit",           SEC_CONSOLE,        true,  &ChatHandler::HandleQuitCommand,                "", nullptr },
         { "gearscore",      SEC_ADMINISTRATOR,  false, &ChatHandler::HandleShowGearScoreCommand,       "", nullptr },
         { "mmap",           SEC_GAMEMASTER,     false, nullptr,                                           "", mmapCommandTable },
-#ifdef BUILD_PLAYERBOT
-        { "bot",            SEC_PLAYER,         false, &ChatHandler::HandlePlayerbotCommand,           "", nullptr },
-#endif
-
         { nullptr,             0,                  false, nullptr,                                           "", nullptr }
     };
 

@@ -70,10 +70,8 @@
 #include "World/WorldStateDefines.h"
 #include "World/WorldState.h"
 
-#ifdef BUILD_PLAYERBOT
-#include "PlayerBot/Base/PlayerbotAI.h"
-#include "PlayerBot/Base/PlayerbotMgr.h"
-#include "Config/Config.h"
+#ifdef ENABLE_PLAYERBOTS
+#include "playerbot.h"
 #endif
 
 #include <cmath>
@@ -91,10 +89,6 @@
 #define SKILL_TEMP_BONUS(x)    int16(PAIR32_LOPART(x))
 #define SKILL_PERM_BONUS(x)    int16(PAIR32_HIPART(x))
 #define MAKE_SKILL_BONUS(t, p) MAKE_PAIR32(t,p)
-
-#ifdef BUILD_PLAYERBOT
-extern Config botConfig;
-#endif
 
 enum CharacterFlags
 {
@@ -478,12 +472,12 @@ UpdateMask Player::updateVisualBits;
 
 Player::Player(WorldSession* session): Unit(), m_taxiTracker(*this), m_mover(this), m_camera(this), m_achievementMgr(this), m_reputationMgr(this)
 {
-    m_transport = nullptr;
-
-#ifdef BUILD_PLAYERBOT
+#ifdef ENABLE_PLAYERBOTS
     m_playerbotAI = 0;
     m_playerbotMgr = 0;
 #endif
+    m_transport = nullptr;
+
     m_speakTime = 0;
     m_speakCount = 0;
 
@@ -696,15 +690,7 @@ Player::~Player()
     for (auto& x : ItemSetEff)
         delete x;
 
-    // clean up player-instance binds, may unload some instance saves
-    for (auto& m_boundInstance : m_boundInstances)
-        for (BoundInstancesMap::iterator itr = m_boundInstance.begin(); itr != m_boundInstance.end(); ++itr)
-            itr->second.state->RemovePlayer(this);
-
-    delete m_declinedname;
-    delete m_runes;
-
-#ifdef BUILD_PLAYERBOT
+#ifdef ENABLE_PLAYERBOTS
     if (m_playerbotAI)
     {
         delete m_playerbotAI;
@@ -716,6 +702,14 @@ Player::~Player()
         m_playerbotMgr = 0;
     }
 #endif
+
+    // clean up player-instance binds, may unload some instance saves
+    for (auto& m_boundInstance : m_boundInstances)
+        for (BoundInstancesMap::iterator itr = m_boundInstance.begin(); itr != m_boundInstance.end(); ++itr)
+            itr->second.state->RemovePlayer(this);
+
+    delete m_declinedname;
+    delete m_runes;
 }
 
 void Player::CleanupsBeforeDelete()
@@ -1647,10 +1641,10 @@ void Player::Update(const uint32 diff)
     if (IsHasDelayedTeleport())
         TeleportTo(m_teleport_dest, m_teleport_options);
 
-#ifdef BUILD_PLAYERBOT
+#ifdef ENABLE_PLAYERBOTS
     if (m_playerbotAI)
         m_playerbotAI->UpdateAI(diff);
-    else if (m_playerbotMgr)
+    if (m_playerbotMgr)
         m_playerbotMgr->UpdateAI(diff);
 #endif
 }
@@ -1913,13 +1907,6 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
     }
 
     MapEntry const* mEntry = sMapStore.LookupEntry(mapid);  // Validity checked in IsValidMapCoord
-
-#ifdef BUILD_PLAYERBOT
-    // If this user has bots, tell them to stop following master
-    // so they don't try to follow the master after the master teleports
-    if (GetPlayerbotMgr())
-        GetPlayerbotMgr()->Stay();
-#endif
 
     // don't let enter battlegrounds without assigned battleground id (for example through areatrigger)...
     // don't let gm level > 1 either
@@ -2791,10 +2778,6 @@ void Player::GiveLevel(uint32 level)
         MailDraft(mailReward->mailTemplateId).SendMailTo(this, MailSender(MAIL_CREATURE, mailReward->senderEntry));
 
     GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_REACH_LEVEL);
-#ifdef BUILD_PLAYERBOT
-    if (m_playerbotAI)
-        m_playerbotAI->GiveLevel(level);
-#endif
     // resend quests status directly
     SendQuestGiverStatusMultiple();
 }
@@ -13183,27 +13166,6 @@ void Player::PrepareGossipMenu(WorldObject* pSource, uint32 menuId)
                 case GOSSIP_OPTION_AUCTIONEER:
                 case GOSSIP_OPTION_MAILBOX:
                     break;                                  // no checks
-                case GOSSIP_OPTION_BOT:
-                {
-#ifdef BUILD_PLAYERBOT
-                    if (botConfig.GetBoolDefault("PlayerbotAI.DisableBots", false) && !pCreature->isInnkeeper())
-                    {
-                        ChatHandler(this).PSendSysMessage("|cffff0000Playerbot system is currently disabled!");
-                        hasMenuItem = false;
-                        break;
-                    }
-
-                    int32 cost = botConfig.GetIntDefault("PlayerbotAI.BotguyCost", 0);
-                    if (cost >= 0)
-                    {
-                        std::string reqQuestIds = botConfig.GetStringDefault("PlayerbotAI.BotguyQuests", "");
-                        if ((reqQuestIds == "" || requiredQuests(reqQuestIds.c_str())) && !pCreature->isInnkeeper() && this->GetMoney() >= (uint32)cost)
-                            pCreature->LoadBotMenu(this);
-                    }
-#endif
-                    hasMenuItem = false;
-                    break;
-                }
                 default:
                     sLog.outErrorDb("Creature entry %u have unknown gossip option %u for menu %u", pCreature->GetEntry(), gossipMenu.option_id, gossipMenu.menu_id);
                     hasMenuItem = false;
@@ -13459,61 +13421,6 @@ void Player::OnGossipSelect(WorldObject* pSource, uint32 gossipListId, uint32 me
             GetSession()->SendBattlegGroundList(guid, bgTypeId);
             break;
         }
-#ifdef BUILD_PLAYERBOT
-        case GOSSIP_OPTION_BOT:
-        {
-            // DEBUG_LOG("GOSSIP_OPTION_BOT");
-            PlayerTalkClass->CloseGossip();
-            uint32 guidlo = PlayerTalkClass->GossipOptionSender(gossipListId);
-            int32 cost = botConfig.GetIntDefault("PlayerbotAI.BotguyCost", 0);
-
-            if (!GetPlayerbotMgr())
-                SetPlayerbotMgr(new PlayerbotMgr(this));
-
-            if (GetPlayerbotMgr()->GetPlayerBot(ObjectGuid(HIGHGUID_PLAYER, guidlo)) != nullptr)
-            {
-                GetPlayerbotMgr()->LogoutPlayerBot(ObjectGuid(HIGHGUID_PLAYER, guidlo));
-            }
-            else if (GetPlayerbotMgr()->GetPlayerBot(ObjectGuid(HIGHGUID_PLAYER, guidlo)) == nullptr)
-            {
-                QueryResult* resultchar = CharacterDatabase.PQuery("SELECT COUNT(*) FROM characters WHERE online = '1' AND account = '%u'", m_session->GetAccountId());
-                if (resultchar)
-                {
-                    Field* fields = resultchar->Fetch();
-                    int maxnum = botConfig.GetIntDefault("PlayerbotAI.MaxNumBots", 9);
-                    int acctcharcount = fields[0].GetUInt32();
-                    if (!(m_session->GetSecurity() > SEC_PLAYER))
-                        if (acctcharcount > maxnum)
-                        {
-                            ChatHandler(this).PSendSysMessage("|cffff0000You cannot summon anymore bots. (Current Max: |cffffffff%u|cffff0000)", maxnum);
-                            delete resultchar;
-                            return;
-                        }
-                }
-                delete resultchar;
-
-                QueryResult* resultlvl = CharacterDatabase.PQuery("SELECT level,name FROM characters WHERE guid = '%u'", guidlo);
-                if (resultlvl)
-                {
-                    Field* fields = resultlvl->Fetch();
-                    int maxlvl = botConfig.GetIntDefault("PlayerbotAI.RestrictBotLevel", 80);
-                    int charlvl = fields[0].GetUInt32();
-                    if (!(m_session->GetSecurity() > SEC_PLAYER))
-                        if (charlvl > maxlvl)
-                        {
-                            ChatHandler(this).PSendSysMessage("|cffff0000You cannot summon |cffffffff[%s]|cffff0000, it's level is too high. (Current Max:lvl |cffffffff%u|cffff0000)", fields[1].GetString(), maxlvl);
-                            delete resultlvl;
-                            return;
-                        }
-                }
-                delete resultlvl;
-
-                GetPlayerbotMgr()->LoginPlayerBot(ObjectGuid(HIGHGUID_PLAYER, guidlo));
-                this->ModifyMoney(-(int32)cost);
-            }
-            return;
-        }
-#endif
     }
 
     if (pMenuData && menuData.m_gAction_script)

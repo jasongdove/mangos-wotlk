@@ -1,0 +1,6 @@
+[submodule "src/modules/Bots"]
+	path = src/modules/Bots
+	url = https://github.com/jasongdove/mangosbot-bots
+[submodule "src/modules/Immersive"]
+	path = src/modules/Immersive
+	url = https://github.com/jasongdove/mangosbot-immersive

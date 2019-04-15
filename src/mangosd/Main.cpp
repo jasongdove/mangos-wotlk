@@ -29,6 +29,10 @@
 #include "SystemConfig.h"
 #include "AuctionHouseBot/AuctionHouseBot.h"
 #include "revision.h"
+#ifdef ENABLE_PLAYERBOTS
+#include "AhBotConfig.h"
+#include "PlayerbotAIConfig.h"
+#endif
 
 #include <openssl/opensslv.h>
 #include <openssl/crypto.h>
@@ -63,11 +67,14 @@ uint32 realmID;                                             ///< Id of the realm
 /// Launch the mangos server
 int main(int argc, char* argv[])
 {
-    std::string auctionBotConfig, configFile, serviceParameter;
+    std::string auctionBotConfig, playerBotConfig, configFile, serviceParameter;
 
     boost::program_options::options_description desc("Allowed options");
     desc.add_options()
     ("ahbot,a", boost::program_options::value<std::string>(&auctionBotConfig), "ahbot configuration file")
+#ifdef ENABLE_PLAYERBOTS
+    ("pbot,p", boost::program_options::value<std::string>(&playerBotConfig), "aiplayerbot configuration file")
+#endif
     ("config,c", boost::program_options::value<std::string>(&configFile)->default_value(_MANGOSD_CONFIG), "configuration file")
     ("help,h", "prints usage")
     ("version,v", "print version and exit")
@@ -105,8 +112,23 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if (vm.count("ahbot"))
+    if (vm.count("ahbot")) {
         sAuctionBotConfig.SetConfigFileName(auctionBotConfig);
+#ifdef ENABLE_PLAYERBOTS
+        sAhBotConfig.SetConfigFileName(auctionBotConfig);
+#endif
+    }
+
+#ifdef ENABLE_PLAYERBOTS
+    else {
+        sAhBotConfig.SetConfigFileName("ahbot.conf");
+    }
+
+    if (vm.count("pbot"))
+        sPlayerbotAIConfig.SetConfigFileName(playerBotConfig);
+    else
+        sPlayerbotAIConfig.SetConfigFileName("aiplayerbot.conf");
+#endif
 
 #ifdef _WIN32                                                // windows service command need execute before config read
     if (vm.count("s"))
